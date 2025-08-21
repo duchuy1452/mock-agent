@@ -96,7 +96,17 @@
     }
   ],
   "rationale": "Overview slide showing key KPIs",
-  "status": "agent_analyzed"
+  "status": "agent_analyzed",
+  "data_preview": [
+    {
+      "date": "2024-01-15",
+      "region": "North",
+      "product": "Laptop",
+      "sales_amount": 1250.00,
+      "units_sold": 5,
+      "customer_type": "Corporate"
+    }
+  ]
 }
 ```
 
@@ -212,6 +222,9 @@ That's it! 🚀
 - **Full Regeneration**: Any slide update regenerates the entire PowerPoint with all slides
 - **Real-time Updates**: WebSocket provides live status updates during generation
 - **Template Support**: Uses uploaded template or creates new presentation
+- **Data Preview**: Each slide includes calculated table preview with real data
+- **Smart Formatting**: Automatic currency, percentage, and number formatting
+- **Live Table Preview**: See exactly how the table will look before downloading
 
 ## 📊 **Slide Table Structure:**
 
