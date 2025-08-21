@@ -34,9 +34,10 @@ class SlideFieldSelection(BaseModel):
     is_group_header: bool = False
     spans_all_columns: bool = False
     is_aggregate: bool = False
-    filters: List[str] = []
+    filters: List[Dict] = []
     aggregation: str = "sum"
     rationale: Optional[str] = None
+    component_rows: List[str] = []
 
 class AgentAnalysisResult(BaseModel):
     slide_number: int

@@ -380,12 +380,12 @@ class PowerPointService:
             if value == 0:
                 return "-"
                 
-            # Insurance/financial specific formatting
-            if any(keyword in field_name.lower() for keyword in ['reserves', 'amount', 'premium', 'loss', 'claim']):
+            # Insurance/actuarial specific formatting
+            if any(keyword in field_name.lower() for keyword in ['actualincurred', 'nominalreserves', 'discountedreserves', 'ocl', 'changeinocl', 'reserves', 'incurred', 'claim']):
                 return f"${value:,.0f}"
             elif any(keyword in field_name.lower() for keyword in ['rate', 'ratio', 'percent']):
                 return f"{value:.2%}" if value <= 1 else f"{value:.2f}%"
-            elif any(keyword in field_name.lower() for keyword in ['count', 'number', 'quantity']):
+            elif any(keyword in field_name.lower() for keyword in ['count', 'number', 'quantity', 'year']):
                 return f"{value:,.0f}"
             elif isinstance(value, float):
                 return f"{value:,.2f}"

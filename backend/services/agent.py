@@ -113,84 +113,162 @@ class AnalysisAgent:
 
         analyses = []
 
-        # Slide 1: Overview/Summary
+        # Slide 1: Reserves Overview
         slide1_fields = [
             SlideFieldSelection(
-                row_label="Total Revenue",
-                metric_fields=["sales_amount"],
-                is_group_header=False,
+                row_label="Total",
+                metric_fields=["ActualIncurred", "NominalReserves", "DiscountedReserves"],
+                is_group_header=True,
+                spans_all_columns=True,
+                is_aggregate=False,
                 aggregation="sum",
-                rationale="Primary revenue metric for overview",
+                filters=[],
+                rationale="User override applied via HITL interface.",
+                component_rows=[],
             ),
             SlideFieldSelection(
-                row_label="Units Sold",
-                metric_fields=["units_sold"],
+                row_label="Outstanding Claims Liability",
+                metric_fields=["OCL"],
                 is_group_header=False,
+                spans_all_columns=False,
+                is_aggregate=False,
                 aggregation="sum",
-                rationale="Volume metric to complement revenue",
+                filters=[],
+                rationale="User override applied via HITL interface.",
+                component_rows=[],
             ),
         ]
 
         analyses.append(
             AgentAnalysisResult(
                 slide_number=1,
-                slide_title="Executive Summary",
+                slide_title="Reserves Summary",
                 selected_fields=slide1_fields,
-                rationale="Overview slide showing key performance indicators",
+                rationale="High-level overview of reserve positions and claims liability",
             )
         )
 
-        # Slide 2: Regional Analysis
+        # Slide 2: Line of Business Analysis
         slide2_fields = [
             SlideFieldSelection(
-                row_label="Revenue by Region",
-                metric_fields=["sales_amount", "region"],
-                is_group_header=True,
+                row_label="LOB1",
+                metric_fields=["OCL"],
+                is_group_header=False,
+                spans_all_columns=False,
+                is_aggregate=False,
                 aggregation="sum",
-                rationale="Regional breakdown is crucial for geographic insights",
+                filters=[{"field": "LoB_masked", "value": 1}],
+                rationale="User override applied via HITL interface.",
+                component_rows=[],
             ),
             SlideFieldSelection(
-                row_label="Units by Region",
-                metric_fields=["units_sold", "region"],
+                row_label="LOB2",
+                metric_fields=["OCL"],
                 is_group_header=False,
+                spans_all_columns=False,
+                is_aggregate=False,
                 aggregation="sum",
-                rationale="Volume metrics by region to understand market penetration",
+                filters=[{"field": "LoB_masked", "value": 2}],
+                rationale="User override applied via HITL interface.",
+                component_rows=[],
+            ),
+            SlideFieldSelection(
+                row_label="LOB3",
+                metric_fields=["OCL"],
+                is_group_header=False,
+                spans_all_columns=False,
+                is_aggregate=False,
+                aggregation="sum",
+                filters=[{"field": "LoB_masked", "value": 3}],
+                rationale="User override applied via HITL interface.",
+                component_rows=[],
+            ),
+            SlideFieldSelection(
+                row_label="LOB4",
+                metric_fields=["OCL"],
+                is_group_header=False,
+                spans_all_columns=False,
+                is_aggregate=False,
+                aggregation="sum",
+                filters=[{"field": "LoB_masked", "value": 4}],
+                rationale="User override applied via HITL interface.",
+                component_rows=[],
+            ),
+            SlideFieldSelection(
+                row_label="LOB5",
+                metric_fields=["OCL"],
+                is_group_header=False,
+                spans_all_columns=False,
+                is_aggregate=False,
+                aggregation="sum",
+                filters=[{"field": "LoB_masked", "value": 5}],
+                rationale="User override applied via HITL interface.",
+                component_rows=[],
+            ),
+            SlideFieldSelection(
+                row_label="Total Loss Component",
+                metric_fields=["OCL"],
+                is_group_header=False,
+                spans_all_columns=False,
+                is_aggregate=True,
+                aggregation="sum",
+                filters=[],
+                rationale="User override applied via HITL interface.",
+                component_rows=["LOB1", "LOB2", "LOB3", "LOB4", "LOB5"],
+            ),
+            SlideFieldSelection(
+                row_label="Loss Component Change",
+                metric_fields=["ChangeInOcl"],
+                is_group_header=False,
+                spans_all_columns=False,
+                is_aggregate=False,
+                aggregation="sum",
+                filters=[],
+                rationale="User override applied via HITL interface.",
+                component_rows=[],
             ),
         ]
 
         analyses.append(
             AgentAnalysisResult(
                 slide_number=2,
-                slide_title="Regional Performance",
+                slide_title="Line of Business Breakdown",
                 selected_fields=slide2_fields,
-                rationale="Regional analysis helps identify top-performing markets",
+                rationale="Detailed breakdown of outstanding claims by line of business",
             )
         )
 
-        # Slide 3: Product Analysis
+        # Slide 3: Reserve Development
         slide3_fields = [
             SlideFieldSelection(
-                row_label="Product Performance",
-                metric_fields=["sales_amount", "product"],
-                is_group_header=True,
-                aggregation="sum",
-                rationale="Product-level insights for portfolio analysis",
-            ),
-            SlideFieldSelection(
-                row_label="Product Volume",
-                metric_fields=["units_sold", "product"],
+                row_label="Total Incurred",
+                metric_fields=["ActualIncurred"],
                 is_group_header=False,
                 aggregation="sum",
-                rationale="Understanding product popularity by volume",
+                rationale="Total incurred losses across all periods",
+            ),
+            SlideFieldSelection(
+                row_label="Nominal Reserves",
+                metric_fields=["NominalReserves"],
+                is_group_header=False,
+                aggregation="sum",
+                rationale="Current nominal reserve estimates",
+            ),
+            SlideFieldSelection(
+                row_label="Discounted Reserves",
+                metric_fields=["DiscountedReserves"],
+                is_group_header=False,
+                aggregation="sum",
+                rationale="Present value of discounted reserves",
             ),
         ]
 
         analyses.append(
             AgentAnalysisResult(
                 slide_number=3,
-                slide_title="Product Analysis",
+                slide_title="Reserve Development",
                 selected_fields=slide3_fields,
-                rationale="Product analysis reveals bestsellers and underperformers",
+                rationale="Analysis of reserve development and discounting impact",
             )
         )
 
@@ -308,7 +386,7 @@ class AnalysisAgent:
                             value = data_df[metric_field].sum()
                         
                         # Format value based on field type
-                        if metric_field in ["sales_amount"]:
+                        if metric_field in ["ActualIncurred", "NominalReserves", "DiscountedReserves", "OCL", "ChangeInOcl"]:
                             row_data["values"][metric_field] = f"${value:,.2f}"
                         else:
                             row_data["values"][metric_field] = f"{value:,.0f}"
@@ -364,7 +442,7 @@ class AnalysisAgent:
                 description=f"Description for {field}",
                 type=(
                     "numeric"
-                    if field in ["sales_amount", "units_sold"] or data_df[field].dtype in ['int64', 'float64']
+                    if field in ["ActualIncurred", "NominalReserves", "DiscountedReserves", "OCL", "ChangeInOcl"] or data_df[field].dtype in ['int64', 'float64']
                     else "categorical"
                 ),
             )

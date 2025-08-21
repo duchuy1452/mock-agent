@@ -19,18 +19,20 @@
   "slide_number": 1,
   "user_modified_fields": [
     {
-      "row_label": "Total Revenue",
-      "metric_fields": ["sales_amount"],
-      "is_group_header": false,
+      "row_label": "Total",
+      "metric_fields": ["ActualIncurred", "NominalReserves", "DiscountedReserves"],
+      "is_group_header": true,
+      "spans_all_columns": true,
       "aggregation": "sum",
-      "rationale": "Primary metric for measuring revenue"
+      "rationale": "Total reserves across all lines of business"
     },
     {
-      "row_label": "Revenue by Region", 
-      "metric_fields": ["sales_amount", "region"],
-      "is_group_header": true,
+      "row_label": "Property (LOB1)", 
+      "metric_fields": ["OCL"],
+      "is_group_header": false,
       "aggregation": "sum",
-      "rationale": "Analyze geographic distribution"
+      "filters": [{"field": "LoB_masked", "operator": "==", "value": 1}],
+      "rationale": "Outstanding claims for Property line of business"
     }
   ]
 }
@@ -40,7 +42,7 @@
 ```json
 {
   "type": "chat_query",
-  "message": "Which region has the best sales trend?",
+  "message": "Which line of business has the highest reserve development?",
   "context": "slide_analysis"
 }
 ```
@@ -73,38 +75,56 @@
 {
   "type": "slide_analysis",
   "slide_number": 1,
-  "slide_title": "Executive Summary",
+  "slide_title": "Reserves Summary",
   "agent_selected_fields": [
     {
-      "row_label": "Total Revenue",
-      "metric_fields": ["sales_amount"],
-      "is_group_header": false,
+      "row_label": "Total",
+      "metric_fields": ["ActualIncurred", "NominalReserves", "DiscountedReserves"],
+      "is_group_header": true,
+      "spans_all_columns": true,
+      "is_aggregate": false,
+      "filters": [],
       "aggregation": "sum",
-      "rationale": "Key metric for the overview"
+      "rationale": "User override applied via HITL interface.",
+      "component_rows": []
+    },
+    {
+      "row_label": "Total Loss Component",
+      "metric_fields": ["OCL"],
+      "is_group_header": false,
+      "spans_all_columns": false,
+      "is_aggregate": true,
+      "filters": [],
+      "aggregation": "sum",
+      "rationale": "User override applied via HITL interface.",
+      "component_rows": ["LOB1", "LOB2", "LOB3", "LOB4", "LOB5"]
     }
   ],
   "all_available_fields": [
     {
-      "field_name": "sales_amount",
-      "description": "Total sales revenue",
+      "field_name": "ActualIncurred",
+      "description": "Total actual incurred losses",
       "type": "numeric"
     },
     {
-      "field_name": "region",
-      "description": "Sales region",
+      "field_name": "LoB_masked",
+      "description": "Line of Business identifier",
       "type": "categorical"
     }
   ],
-  "rationale": "Overview slide showing key KPIs",
+  "rationale": "High-level overview of reserve positions and claims liability",
   "status": "agent_analyzed",
   "data_preview": [
     {
-      "date": "2024-01-15",
-      "region": "North",
-      "product": "Laptop",
-      "sales_amount": 1250.00,
-      "units_sold": 5,
-      "customer_type": "Corporate"
+      "LoB_masked": 1,
+      "AccidentYear": 2019,
+      "DevelopmentYear": 1,
+      "ActualIncurred": 1250000,
+      "NominalReserves": 980000,
+      "DiscountedReserves": 950000,
+      "OCL": 180000,
+      "ChangeInOcl": 25000,
+      "BusinessSegment": "Property"
     }
   ]
 }
@@ -174,12 +194,12 @@
 ```json
 {
   "type": "chat_response",
-  "message": "Based on the analysis:\n\n**North region** leads with $8,750 (32%)\n**West region** follows with $7,300 (26%)\n\nNorth region shows the highest growth potential.",
-  "sources": ["slide_2_regional_analysis", "original_data"],
+  "message": "Based on the analysis:\n\n**Casualty (LOB2)** leads with $1,050,000 OCL (32%)\n**Reinsurance (LOB5)** follows with $1,050,000 OCL (32%)\n\nCasualty shows the highest reserve volatility.",
+  "sources": ["slide_2_lob_analysis", "original_data"],
   "suggested_actions": [
-    "Create detailed slide for North region analysis",
-    "Compare performance by month",
-    "Generate detailed report"
+    "Create detailed slide for Casualty analysis",
+    "Compare reserve development by accident year",
+    "Generate detailed actuarial report"
   ]
 }
 ```
@@ -188,7 +208,7 @@
 ```json
 {
   "type": "error",
-  "message": "Slide processing error: Field 'sales_amount' not found in data"
+  "message": "Slide processing error: Field 'ActualIncurred' not found in data"
 }
 ```
 
@@ -239,20 +259,20 @@ Example table content:
   "slide_number": 1,
   "table_rows": [
     {
-      "label": "Revenue Analysis",
+      "label": "Total",
       "is_group_header": true,
       "spans_all_columns": true,
-      "values": {"header": "Revenue Analysis"}
+      "values": {"header": "Total"}
     },
     {
-      "label": "Total Revenue",
+      "label": "Outstanding Claims Liability",
       "is_group_header": false,
-      "values": {"sales_amount": "$27,750.00"}
+      "values": {"OCL": "$3,285,000"}
     },
     {
-      "label": "Total Units",
+      "label": "Change in OCL",
       "is_group_header": false,
-      "values": {"units_sold": "439"}
+      "values": {"ChangeInOcl": "$615,000"}
     }
   ]
 }
@@ -291,9 +311,9 @@ ws.send(JSON.stringify(slideUpdate));
 POST /api/projects
 Content-Type: multipart/form-data
 
-name: "Q1 Sales Analysis"
+name: "IFRS RESERVING"
 auto: false
-data_source: sales_data.csv
+data_source: insurance_data.csv
 schema: schema.json
 template: template.pptm (optional)
 ```

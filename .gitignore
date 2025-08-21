@@ -1,2 +1,4 @@
 vvenv
 .env
+downloads/
+uploads/

@@ -1,8 +1,11 @@
 {
-    "date": "The transaction date in YYYY-MM-DD format.",
-    "region": "Geographical region where the sale occurred (e.g., North, South, East, West).",
-    "product": "The product name or category sold (e.g., Laptop, Mouse, Keyboard, Monitor, Tablet).",
-    "sales_amount": "Total monetary value of the sales transaction, expressed in the local currency.",
-    "units_sold": "Number of product units sold in the transaction.",
-    "customer_type": "Type of customer making the purchase (e.g., Corporate, Individual)."
+  "LoB_masked": "Line of Business identifier (1=Property, 2=Casualty, 3=Marine, 4=Aviation, 5=Reinsurance)",
+  "AccidentYear": "Year when the insurance policy was effective",
+  "DevelopmentYear": "Number of years since the accident year",
+  "ActualIncurred": "Total actual incurred losses (numeric, currency)",
+  "NominalReserves": "Nominal value of loss reserves (numeric, currency)",
+  "DiscountedReserves": "Present value of discounted reserves (numeric, currency)",
+  "OCL": "Outstanding Claims Liability (numeric, currency)",
+  "ChangeInOcl": "Change in Outstanding Claims Liability from previous period (numeric, currency)",
+  "BusinessSegment": "Business segment description (categorical)"
 }

@@ -1,17 +1,17 @@
 # Expert Sure Backend
 
-Intelligent Reporting Agent Backend - Mock Implementation
+Intelligent Reporting Agent Backend - Insurance Actuarial Analysis
 
 ## Features
 
 - ✅ Project Management API
-- ✅ File Upload (CSV, JSON, PPTX)
+- ✅ File Upload (CSV, JSON, PPTX/PPTM)
 - ✅ Real-time WebSocket Communication
-- ✅ Mock AI Agent Processing
+- ✅ AI Agent Processing for Insurance Data
 - ✅ Automatic Slide Generation
-- ✅ PowerPoint File Creation
-- ✅ Enhanced Data Analysis
-- ✅ Markdown Report Generation
+- ✅ PowerPoint File Creation (.pptm)
+- ✅ Insurance Data Analysis with LoB filtering
+- ✅ Reserve Analysis and OCL calculations
 - ✅ RAG Chat Simulation
 
 ## Setup
@@ -24,7 +24,7 @@ pip install -r requirements.txt
 
 2. **Run the Server**
 ```bash
-python run.py
+python main.py
 ```
 
 3. **Access API Documentation**
@@ -51,8 +51,8 @@ python run.py
 curl -X POST "http://localhost:8000/api/projects" \
   -F "name=IFRS RESERVING" \
   -F "auto=false" \
-  -F "data_source=@../data.csv" \
-  -F "schema=@../field.json" \
+  -F "data_source=@../sample_data.csv" \
+  -F "schema=@../sample_schema.json" \
   -F "template=@../Template.pptm"
 ```
 
@@ -69,80 +69,49 @@ ws.onmessage = (event) => {
 ### 3. Send Field Selection
 ```javascript
 ws.send(JSON.stringify({
-    "type": "field_selection",
-    "field_config": {
-        "A": {"selected": true, "analysis_type": "trend"},
-        "C": {"selected": true, "analysis_type": "risk"}
-    }
+    "type": "slide_update",
+    "slide_number": 1,
+    "user_modified_fields": [
+        {
+            "row_label": "Property (LOB1)",
+            "metric_fields": ["OCL"],
+            "is_group_header": false,
+            "aggregation": "sum",
+            "filters": [{"field": "LoB_masked", "operator": "==", "value": 1}]
+        }
+    ]
 }));
 ```
 
-### 4. Proceed with Processing
-```javascript
-ws.send(JSON.stringify({
-    "type": "proceed_processing",
-    "confirmed": true
-}));
-```
-
-### 5. Monitor Real-time Updates
+### 4. Monitor Real-time Updates
 - Slide generation notifications
 - Status updates
-- File ready notifications
-- Data analysis results
+- PowerPoint file ready notifications
+- Insurance data analysis results
 
-## Mock Agent Behavior
+## Insurance Data Structure
 
-The agent simulates real processing with:
-- **Field-based slide generation**
-- **Cross-field correlation analysis**
-- **Business intelligence insights**
-- **Risk assessment**
-- **Strategic recommendations**
+### Sample CSV Fields:
+- **LoB_masked**: Line of Business (1-5)
+- **AccidentYear**: Policy effective year
+- **DevelopmentYear**: Years since accident
+- **ActualIncurred**: Total incurred losses ($)
+- **NominalReserves**: Nominal reserve value ($)
+- **DiscountedReserves**: Present value reserves ($)
+- **OCL**: Outstanding Claims Liability ($)
+- **ChangeInOcl**: Change in OCL ($)
+- **BusinessSegment**: Segment description
 
-## File Structure
+### Generated Analysis:
+1. **Reserves Summary**: Total overview across all LoB
+2. **Line of Business Breakdown**: Filtered analysis per LoB
+3. **Reserve Development**: Detailed financial breakdown
 
-```
-backend/
-├── main.py              # FastAPI application
-├── models.py            # Data models
-├── requirements.txt     # Dependencies
-├── run.py              # Startup script
-├── services/
-│   ├── __init__.py
-│   ├── agent.py        # Analysis agent
-│   └── websocket_manager.py
-├── uploads/            # User uploaded files
-└── downloads/          # Generated outputs
-```
-
-## WebSocket Message Types
-
-### From Client:
-- `field_selection` - Field configuration
-- `proceed_processing` - Start analysis
-- `chat_query` - RAG questions
-
-### From Server:
-- `status_update` - Processing status
-- `slide_generated` - Individual slide ready
-- `outputs_ready` - Data/markdown ready
-- `file_ready` - PowerPoint download
-- `chat_response` - RAG answers
-
-## Integration Notes
-
-This backend is designed to integrate with:
-- **Next.js Frontend** (CORS enabled)
-- **Any WebSocket client**
-- **File upload interfaces**
-- **Real-time dashboards**
+### Features:
+- Real actuarial calculations
+- LoB filtering with operators
+- Currency formatting for financial fields
+- Group headers with spans_all_columns
+- Professional PowerPoint generation
 
 For production, replace mock processing with actual AI/ML services.
-
-## Testing
-
-Use the interactive API docs at http://localhost:8000/docs to test all endpoints.
-
----
-*Built with FastAPI, WebSockets, and Python-PPTX* 

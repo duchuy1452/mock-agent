@@ -1,0 +1,53 @@
+{
+  "LoB_masked": {
+    "description": "Line of Business identifier",
+    "type": "categorical",
+    "values": [1, 2, 3, 4, 5],
+    "labels": ["Property", "Casualty", "Marine", "Aviation", "Reinsurance"]
+  },
+  "AccidentYear": {
+    "description": "Year when the insurance policy was effective",
+    "type": "categorical",
+    "values": [2019, 2020, 2021]
+  },
+  "DevelopmentYear": {
+    "description": "Number of years since the accident year",
+    "type": "categorical", 
+    "values": [1, 2]
+  },
+  "ActualIncurred": {
+    "description": "Total actual incurred losses",
+    "type": "numeric",
+    "format": "currency",
+    "aggregations": ["sum", "average"]
+  },
+  "NominalReserves": {
+    "description": "Nominal value of loss reserves",
+    "type": "numeric",
+    "format": "currency",
+    "aggregations": ["sum", "average"]
+  },
+  "DiscountedReserves": {
+    "description": "Present value of discounted reserves",
+    "type": "numeric",
+    "format": "currency", 
+    "aggregations": ["sum", "average"]
+  },
+  "OCL": {
+    "description": "Outstanding Claims Liability",
+    "type": "numeric",
+    "format": "currency",
+    "aggregations": ["sum", "average"]
+  },
+  "ChangeInOcl": {
+    "description": "Change in Outstanding Claims Liability",
+    "type": "numeric",
+    "format": "currency",
+    "aggregations": ["sum", "average"]
+  },
+  "BusinessSegment": {
+    "description": "Business segment description",
+    "type": "categorical",
+    "values": ["Property", "Casualty", "Marine", "Aviation", "Reinsurance"]
+  }
+}
