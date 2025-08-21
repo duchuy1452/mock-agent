@@ -345,7 +345,18 @@ class AnalysisAgent:
     async def _send_analysis_results(
         self, analyses: List[AgentAnalysisResult], all_fields: List[str]
     ):
-        """Send analysis results to client"""
+        """Send analysis results with data preview to client"""
+        # Get project data for preview
+        async with async_session() as session:
+            result = await session.execute(
+                select(Project).where(Project.id == self.project_id)
+            )
+            project = result.scalar_one()
+            
+            # Load data for preview
+            data_df = pd.read_csv(project.data_source_path)
+            data_preview = data_df.head(10).to_dict("records")  # First 10 rows
+            
         # Convert all fields to FieldItem format
         field_items = [
             FieldItem(
@@ -353,14 +364,17 @@ class AnalysisAgent:
                 description=f"Description for {field}",
                 type=(
                     "numeric"
-                    if field in ["sales_amount", "units_sold"]
+                    if field in ["sales_amount", "units_sold"] or data_df[field].dtype in ['int64', 'float64']
                     else "categorical"
                 ),
             )
-            for field in all_fields
+            for field in all_fields if field in data_df.columns
         ]
 
         for analysis in analyses:
+            # Generate table preview for this slide
+            table_preview = await self._generate_table_preview(analysis, data_df)
+            
             await self.websocket_manager.send_to_project(
                 self.project_id,
                 {
@@ -373,6 +387,8 @@ class AnalysisAgent:
                     "all_available_fields": [field.dict() for field in field_items],
                     "rationale": analysis.rationale,
                     "status": "agent_analyzed",
+                    "table_preview": table_preview,
+                    "data_preview": data_preview if analysis.slide_number == 1 else None,  # Only send data preview once
                 },
             )
 
@@ -408,6 +424,67 @@ class AnalysisAgent:
                 "progress": progress,
             },
         )
+
+    async def _generate_table_preview(self, analysis: AgentAnalysisResult, data_df: pd.DataFrame) -> Dict:
+        """Generate table preview for a slide"""
+        try:
+            # Get all unique metric fields for this slide
+            all_metric_fields = []
+            for field in analysis.selected_fields:
+                if field.metric_fields:
+                    for metric in field.metric_fields:
+                        if metric not in all_metric_fields and metric in data_df.columns:
+                            all_metric_fields.append(metric)
+            
+            if not all_metric_fields:
+                return {"headers": [], "rows": []}
+            
+            # Create table structure
+            headers = [""] + [field.replace("_", " ").title() for field in all_metric_fields]
+            rows = []
+            
+            for field in analysis.selected_fields:
+                row = [field.row_label]
+                
+                for metric_field in all_metric_fields:
+                    if metric_field in (field.metric_fields or []):
+                        # Calculate value
+                        if field.aggregation == "sum":
+                            value = data_df[metric_field].sum()
+                        elif field.aggregation == "average" or field.aggregation == "mean":
+                            value = data_df[metric_field].mean()
+                        elif field.aggregation == "count":
+                            value = data_df[metric_field].count()
+                        else:
+                            value = data_df[metric_field].sum()
+                        
+                        # Format value
+                        if "amount" in metric_field.lower() or "sales" in metric_field.lower():
+                            formatted_value = f"${value:,.2f}"
+                        elif metric_field in ["units_sold", "quantity"]:
+                            formatted_value = f"{value:,.0f}"
+                        else:
+                            formatted_value = f"{value:,.2f}"
+                        
+                        row.append(formatted_value)
+                    else:
+                        row.append("")
+                
+                rows.append({
+                    "values": row,
+                    "is_group_header": field.is_group_header,
+                    "spans_all_columns": getattr(field, 'spans_all_columns', False)
+                })
+            
+            return {
+                "headers": headers,
+                "rows": rows,
+                "metric_fields": all_metric_fields
+            }
+            
+        except Exception as e:
+            print(f"Error generating table preview: {e}")
+            return {"headers": [], "rows": [], "error": str(e)}
 
     async def _send_error(self, message: str):
         """Send error message"""
