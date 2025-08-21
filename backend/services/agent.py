@@ -1,406 +1,416 @@
 import asyncio
-import pandas as pd
 import json
-from datetime import datetime
+import pandas as pd
 from pathlib import Path
 from typing import Dict, List
-from pptx import Presentation
-from pptx.util import Inches
-import markdown
+from models import SlideFieldSelection, FieldItem, AgentAnalysisResult
+from database import async_session, Project, Slide
+from sqlalchemy import select, update
+import uuid
+from services.powerpoint_service import PowerPointService
 
-from models import Project, ProjectStatus, SlideInfo, ProjectOutput
-from services.websocket_manager import WebSocketManager
 
 class AnalysisAgent:
-    def __init__(self, project_id: str, websocket_manager: WebSocketManager):
+    def __init__(self, project_id: str, websocket_manager):
         self.project_id = project_id
         self.websocket_manager = websocket_manager
-        self.slides_generated = []
-        
-    async def start_analysis(self, project: Project):
-        """Main analysis workflow"""
+
+    async def start_initial_analysis(self):
+        """Start initial analysis when WebSocket connects"""
         try:
-            await self.send_status("PROCESSING", "Starting analysis agent...")
-            await asyncio.sleep(1)
-            
-            # Load and analyze data
-            data = await self.load_data(project)
-            schema = await self.load_schema(project)
-            
-            await self.send_status("PROCESSING", "Analyzing data structure...")
-            await asyncio.sleep(1)
-            
-            # Determine slide plan
-            slide_plan = self.determine_slide_plan(project.field_config, data, schema)
-            
-            await self.send_status("PROCESSING", f"Planning complete. Generating {len(slide_plan)} slides...")
-            await asyncio.sleep(1)
-            
-            # Generate slides
-            for i, slide_info in enumerate(slide_plan):
-                await self.generate_slide(i + 1, slide_info, data, project)
-                await asyncio.sleep(2)  # Simulate processing time
-            
-            # Update status to DATA_READY
-            project.status = ProjectStatus.DATA_READY
-            await self.send_status("DATA_READY", "Data analysis complete. Generating outputs...")
-            
-            # Generate outputs
-            await self.generate_outputs(project, data)
-            
-            # Compile PowerPoint
-            await self.compile_powerpoint(project)
-            
-            # Final status
-            project.status = ProjectStatus.PPT_READY
-            await self.send_status("PPT_READY", f"Analysis complete! {len(self.slides_generated)} slides generated.")
-            
+            async with async_session() as session:
+                # Get project data
+                result = await session.execute(
+                    select(Project).where(Project.id == self.project_id)
+                )
+                project = result.scalar_one_or_none()
+
+                if not project:
+                    await self._send_error("Project not found")
+                    return
+
+                # Update project status
+                await session.execute(
+                    update(Project)
+                    .where(Project.id == self.project_id)
+                    .values(status="agent_analyzing")
+                )
+                await session.commit()
+
+                await self._send_status(
+                    "AGENT_ANALYZING", "Agent is analyzing your data...", 0
+                )
+
+                # Load and analyze data
+                data_df = pd.read_csv(project.data_source_path)
+                schema_data = json.loads(Path(project.schema_path).read_text())
+
+                # Create slides with agent analysis
+                slide_analyses = await self._analyze_slides(data_df, schema_data)
+
+                # Save slides to database
+                for analysis in slide_analyses:
+                    # Convert Pydantic objects to dict for JSON serialization
+                    agent_fields_dict = [field.dict() for field in analysis.selected_fields]
+                    
+                    slide = Slide(
+                        project_id=self.project_id,
+                        slide_number=analysis.slide_number,
+                        slide_title=analysis.slide_title,
+                        status="agent_analyzed",
+                        agent_selected_fields=agent_fields_dict,
+                        final_fields=agent_fields_dict,
+                    )
+                    session.add(slide)
+
+                await session.commit()
+
+                # Generate complete PowerPoint presentation
+                await self._send_status(
+                    "GENERATING_POWERPOINT", "Generating PowerPoint presentation...", 80
+                )
+                
+                try:
+                    powerpoint_service = PowerPointService(self.project_id)
+                    ppt_path = await powerpoint_service.generate_complete_presentation()
+                    
+                    # Send PowerPoint ready notification
+                    download_url = f"/downloads/{self.project_id}/analysis_report.pptm"
+                    await self.websocket_manager.send_to_project(
+                        self.project_id,
+                        {
+                            "type": "powerpoint_ready",
+                            "download_url": download_url,
+                            "message": "Complete PowerPoint presentation is ready for download",
+                        },
+                    )
+                    
+                except Exception as e:
+                    await self._send_error(f"PowerPoint generation failed: {str(e)}")
+                    print(f"PowerPoint generation error: {e}")  # Debug logging
+                
+                # Update project status
+                await session.execute(
+                    update(Project)
+                    .where(Project.id == self.project_id)
+                    .values(status="waiting_for_user")
+                )
+                await session.commit()
+                
+                # Send results to client with PowerPoint download URL
+                await self._send_analysis_results(
+                    slide_analyses, list(schema_data.keys())
+                )
+
         except Exception as e:
-            project.status = ProjectStatus.FAILED
-            await self.send_status("FAILED", f"Analysis failed: {str(e)}")
-    
-    async def load_data(self, project: Project) -> pd.DataFrame:
-        """Load CSV data"""
-        data_path = project.files["data_source"]
-        return pd.read_csv(data_path)
-    
-    async def load_schema(self, project: Project) -> dict:
-        """Load JSON schema"""
-        schema_path = project.files["schema"]
-        with open(schema_path, 'r') as f:
-            return json.load(f)
-    
-    def determine_slide_plan(self, field_config: Dict, data: pd.DataFrame, schema: dict) -> List[Dict]:
-        """Determine what slides to generate based on field selection"""
-        slide_plan = []
-        
-        selected_fields = [field for field, config in (field_config or {}).items() if config.get("selected", False)]
-        
-        if not selected_fields:
-            selected_fields = list(data.columns)
-        
-        # Always start with executive summary
-        slide_plan.append({
-            "title": "Executive Summary",
-            "type": "executive_summary",
-            "fields": selected_fields
-        })
-        
-        # Individual field analysis (for detailed analysis)
-        for field in selected_fields:
-            if field in schema:
-                slide_plan.append({
-                    "title": f"{schema[field]} Analysis",
-                    "type": "field_analysis",
-                    "fields": [field]
-                })
-        
-        # Cross-field analysis if multiple fields
-        if len(selected_fields) > 1:
-            slide_plan.append({
-                "title": "Correlation Analysis",
-                "type": "correlation",
-                "fields": selected_fields
-            })
-            
-            slide_plan.append({
-                "title": "Comparative Analysis",
-                "type": "comparison",
-                "fields": selected_fields
-            })
-        
-        # Business insights
-        slide_plan.append({
-            "title": "Risk Assessment",
-            "type": "risk_analysis",
-            "fields": selected_fields
-        })
-        
-        slide_plan.append({
-            "title": "Recommendations",
-            "type": "recommendations",
-            "fields": selected_fields
-        })
-        
-        return slide_plan
-    
-    async def generate_slide(self, slide_num: int, slide_info: Dict, data: pd.DataFrame, project: Project):
-        """Generate individual slide"""
-        await self.send_status("PROCESSING", f"Generating slide {slide_num}: {slide_info['title']}...")
-        
-        # Mock slide content generation
-        slide_content = self.generate_slide_content(slide_info, data)
-        
-        slide = SlideInfo(
-            slide_number=slide_num,
-            slide_title=slide_info["title"],
-            slide_content=slide_content,
-            fields_included=slide_info["fields"],
-            analysis_type=slide_info["type"],
-            generated_at=datetime.now().isoformat()
+            await self._send_error(f"Analysis failed: {str(e)}")
+
+    async def _analyze_slides(
+        self, data_df: pd.DataFrame, schema_data: dict
+    ) -> List[AgentAnalysisResult]:
+        """Analyze data and suggest fields for each slide"""
+        await asyncio.sleep(2)  # Simulate AI processing
+
+        analyses = []
+
+        # Slide 1: Overview/Summary
+        slide1_fields = [
+            SlideFieldSelection(
+                row_label="Total Revenue",
+                metric_fields=["sales_amount"],
+                is_group_header=False,
+                aggregation="sum",
+                rationale="Primary revenue metric for overview",
+            ),
+            SlideFieldSelection(
+                row_label="Units Sold",
+                metric_fields=["units_sold"],
+                is_group_header=False,
+                aggregation="sum",
+                rationale="Volume metric to complement revenue",
+            ),
+        ]
+
+        analyses.append(
+            AgentAnalysisResult(
+                slide_number=1,
+                slide_title="Executive Summary",
+                selected_fields=slide1_fields,
+                rationale="Overview slide showing key performance indicators",
+            )
         )
-        
-        self.slides_generated.append(slide)
-        project.slides.append(slide)
-        
-        # Send slide ready notification
-        await self.websocket_manager.send_to_project(self.project_id, {
-            "type": "slide_generated",
-            "slide_number": slide_num,
-            "slide_title": slide_info["title"],
-            "status": f"SLIDE_{slide_num}_READY",
-            "fields_included": slide_info["fields"],
-            "analysis_type": slide_info["type"]
-        })
-    
-    def generate_slide_content(self, slide_info: Dict, data: pd.DataFrame) -> str:
-        """Generate mock slide content based on slide type"""
-        slide_type = slide_info["type"]
-        fields = slide_info["fields"]
-        
-        if slide_type == "executive_summary":
-            return f"""
-# Executive Summary
 
-## Key Findings
-- Analyzed {len(data)} data points across {len(fields)} fields
-- Fields analyzed: {', '.join(fields)}
-- Data quality: 100% complete records
+        # Slide 2: Regional Analysis
+        slide2_fields = [
+            SlideFieldSelection(
+                row_label="Revenue by Region",
+                metric_fields=["sales_amount", "region"],
+                is_group_header=True,
+                aggregation="sum",
+                rationale="Regional breakdown is crucial for geographic insights",
+            ),
+            SlideFieldSelection(
+                row_label="Units by Region",
+                metric_fields=["units_sold", "region"],
+                is_group_header=False,
+                aggregation="sum",
+                rationale="Volume metrics by region to understand market penetration",
+            ),
+        ]
 
-## Performance Highlights
-- Average growth rate: {data[fields[0]].pct_change().mean()*100:.1f}% (if applicable)
-- Key trends identified across all selected metrics
-- Strong correlation patterns observed
-
-## Strategic Recommendations
-- Continue monitoring key performance indicators
-- Focus on identified growth opportunities
-- Implement risk mitigation strategies
-"""
-        
-        elif slide_type == "field_analysis":
-            field = fields[0]
-            field_data = data[field] if field in data.columns else [1, 2, 3, 4]
-            return f"""
-# {slide_info['title']}
-
-## Data Overview
-- Field: {field}
-- Data points: {len(field_data)}
-- Range: {min(field_data)} - {max(field_data)}
-- Average: {sum(field_data)/len(field_data):.2f}
-
-## Key Insights
-- Trend analysis shows consistent patterns
-- Growth trajectory indicates positive momentum
-- Risk factors identified and manageable
-
-## Recommendations
-- Monitor this metric closely
-- Consider optimization opportunities
-- Implement tracking mechanisms
-"""
-        
-        elif slide_type == "correlation":
-            return f"""
-# Correlation Analysis
-
-## Field Relationships
-- Analyzed correlations between: {', '.join(fields)}
-- Strong positive correlation identified
-- Predictive patterns observed
-
-## Statistical Insights
-- Correlation coefficient: 0.85+ (simulated)
-- Relationship strength: Strong
-- Predictive value: High
-
-## Business Implications
-- Fields move together predictably
-- Can use for forecasting
-- Risk diversification needed
-"""
-        
-        else:
-            return f"""
-# {slide_info['title']}
-
-## Analysis Summary
-- Focus areas: {', '.join(fields)}
-- Analysis type: {slide_type}
-- Key insights generated
-
-## Findings
-- Detailed analysis completed
-- Patterns identified
-- Actionable insights derived
-
-## Next Steps
-- Review recommendations
-- Implement suggested actions
-- Monitor ongoing performance
-"""
-    
-    async def generate_outputs(self, project: Project, data: pd.DataFrame):
-        """Generate additional outputs"""
-        
-        # Enhanced CSV output
-        enhanced_data = data.copy()
-        if len(data) > 0:
-            # Add some mock analysis columns
-            enhanced_data['trend_indicator'] = ['↗ Growing'] * len(data)
-            enhanced_data['risk_level'] = ['Low', 'Medium', 'Medium', 'High'][:len(data)]
-        
-        csv_output = ProjectOutput(
-            output_type="table",
-            content=enhanced_data.to_dict('records'),
-            generated_at=datetime.now().isoformat()
+        analyses.append(
+            AgentAnalysisResult(
+                slide_number=2,
+                slide_title="Regional Performance",
+                selected_fields=slide2_fields,
+                rationale="Regional analysis helps identify top-performing markets",
+            )
         )
-        project.outputs.append(csv_output)
-        
-        # Markdown analysis report
-        markdown_content = self.generate_markdown_report(project, data)
-        
-        markdown_output = ProjectOutput(
-            output_type="markdown",
-            content=markdown_content,
-            generated_at=datetime.now().isoformat()
+
+        # Slide 3: Product Analysis
+        slide3_fields = [
+            SlideFieldSelection(
+                row_label="Product Performance",
+                metric_fields=["sales_amount", "product"],
+                is_group_header=True,
+                aggregation="sum",
+                rationale="Product-level insights for portfolio analysis",
+            ),
+            SlideFieldSelection(
+                row_label="Product Volume",
+                metric_fields=["units_sold", "product"],
+                is_group_header=False,
+                aggregation="sum",
+                rationale="Understanding product popularity by volume",
+            ),
+        ]
+
+        analyses.append(
+            AgentAnalysisResult(
+                slide_number=3,
+                slide_title="Product Analysis",
+                selected_fields=slide3_fields,
+                rationale="Product analysis reveals bestsellers and underperformers",
+            )
         )
-        project.outputs.append(markdown_output)
-        
-        # Send outputs ready notification
-        await self.websocket_manager.send_to_project(self.project_id, {
-            "type": "outputs_ready",
-            "csv_data": enhanced_data.to_dict('records'),
-            "markdown_content": markdown_content
-        })
-    
-    def generate_markdown_report(self, project: Project, data: pd.DataFrame) -> str:
-        """Generate comprehensive markdown analysis report"""
-        selected_fields = list((project.field_config or {}).keys()) or list(data.columns)
-        
-        return f"""
-# {project.name} - Analysis Report
-*Generated on: {datetime.now().strftime('%B %d, %Y at %H:%M')}*
 
-## Executive Summary
-This report presents a comprehensive analysis of the submitted data across {len(selected_fields)} key fields. Our intelligent agent has processed {len(data)} data points to provide actionable insights for strategic decision-making.
+        return analyses
 
-## Data Overview
-- **Dataset Size**: {len(data)} records
-- **Fields Analyzed**: {', '.join(selected_fields)}
-- **Analysis Type**: Comprehensive Financial Performance Review
-- **Data Quality**: 100% complete records
+    async def process_slide_update(
+        self, slide_number: int, user_fields: List[SlideFieldSelection]
+    ):
+        """Process user modifications for a specific slide"""
+        try:
+            async with async_session() as session:
+                # Convert Pydantic objects to dict for JSON serialization
+                user_fields_dict = [field.dict() for field in user_fields]
+                
+                # Update slide with user modifications
+                await session.execute(
+                    update(Slide)
+                    .where(
+                        Slide.project_id == self.project_id,
+                        Slide.slide_number == slide_number,
+                    )
+                    .values(
+                        user_modified_fields=user_fields_dict,
+                        final_fields=user_fields_dict,
+                        status="processing",
+                    )
+                )
+                await session.commit()
 
-## Key Findings
+                await self._send_status(
+                    "SLIDE_PROCESSING", f"Processing slide {slide_number}...", 50
+                )
 
-### 📈 Performance Metrics
-- **Growth Pattern**: Consistent upward trajectory observed
-- **Volatility**: Moderate risk levels identified
-- **Correlation Strength**: Strong relationships between key metrics
+                # Regenerate complete PowerPoint presentation with all slides
+                await self._send_status(
+                    "UPDATING_POWERPOINT", "Updating complete PowerPoint presentation...", 70
+                )
+                
+                powerpoint_service = PowerPointService(self.project_id)
+                ppt_path = await powerpoint_service.generate_complete_presentation()
 
-### 📊 Statistical Summary
-{self.generate_statistical_summary(data, selected_fields)}
+                # Mark slide as completed
+                await session.execute(
+                    update(Slide)
+                    .where(
+                        Slide.project_id == self.project_id,
+                        Slide.slide_number == slide_number,
+                    )
+                    .values(status="completed")
+                )
+                await session.commit()
 
-### ⚠️ Risk Assessment
-- **Current Risk Level**: Medium
-- **Key Risk Factors**: 
-  - Concentration risk in primary metrics
-  - Market volatility exposure
-  - Growth sustainability concerns
+                await self._send_slide_completed(slide_number)
 
-## Strategic Recommendations
+        except Exception as e:
+            await self._send_error(f"Failed to process slide {slide_number}: {str(e)}")
 
-1. **Performance Optimization**
-   - Focus on high-impact areas identified in the analysis
-   - Implement continuous monitoring systems
-   - Establish key performance benchmarks
-
-2. **Risk Mitigation**
-   - Diversify exposure across different metrics
-   - Implement early warning systems
-   - Regular stress testing protocols
-
-3. **Growth Strategy**
-   - Capitalize on identified growth opportunities
-   - Monitor market conditions closely
-   - Adjust strategies based on performance data
-
-## Technical Details
-- **Analysis Method**: Multi-variate statistical analysis
-- **Confidence Level**: 95%
-- **Data Processing**: Automated with human oversight
-- **Quality Assurance**: Comprehensive validation performed
-
----
-*This analysis was generated by Expert Sure AI Agent v1.0*
-"""
-    
-    def generate_statistical_summary(self, data: pd.DataFrame, fields: List[str]) -> str:
-        """Generate statistical summary for markdown report"""
-        if len(data) == 0:
-            return "No data available for statistical analysis."
-        
-        summary_lines = []
-        for field in fields:
-            if field in data.columns and pd.api.types.is_numeric_dtype(data[field]):
-                field_data = data[field]
-                summary_lines.append(f"- **{field}**: Mean = {field_data.mean():.2f}, Std = {field_data.std():.2f}")
-        
-        return '\n'.join(summary_lines) if summary_lines else "Statistical summary not available for selected fields."
-    
-    async def compile_powerpoint(self, project: Project):
-        """Compile all slides into PowerPoint file"""
-        await self.send_status("PROCESSING", "Compiling PowerPoint presentation...")
-        
-        # Create PowerPoint presentation
-        prs = Presentation()
-        
-        # Add title slide
-        title_slide = prs.slides.add_slide(prs.slide_layouts[0])
-        title_slide.shapes.title.text = project.name
-        title_slide.placeholders[1].text = f"Analysis Report - Generated {datetime.now().strftime('%B %d, %Y')}"
-        
-        # Add content slides
-        for slide_info in self.slides_generated:
-            slide = prs.slides.add_slide(prs.slide_layouts[1])
-            slide.shapes.title.text = slide_info.slide_title
-            
-            # Add content (simplified - in production, add charts, tables, etc.)
-            content_box = slide.shapes.placeholders[1]
-            content_box.text = f"Analysis completed for: {', '.join(slide_info.fields_included)}\n\nKey insights and recommendations included."
-        
-        # Save PowerPoint file
+    async def _update_powerpoint_slide(
+        self, slide_number: int, fields: List[SlideFieldSelection]
+    ):
+        """Update specific slide in the consolidated PowerPoint file"""
+        # Create downloads directory
         output_dir = Path(f"downloads/{self.project_id}")
         output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Load project data to create table content
+        async with async_session() as session:
+            result = await session.execute(select(Project).where(Project.id == self.project_id))
+            project = result.scalar_one()
+            
+            # Load data for table generation
+            data_df = pd.read_csv(project.data_source_path)
+            
+            # Generate table content for this slide
+            table_content = self._generate_table_content(slide_number, fields, data_df)
+            
+            # Save slide table content
+            slide_file = output_dir / f"slide_{slide_number}_table.json"
+            with open(slide_file, "w") as f:
+                json.dump(table_content, f, indent=2)
+
+        # Update the consolidated PowerPoint file
+        await self._update_consolidated_pptm(output_dir)
+
+    def _generate_table_content(self, slide_number: int, fields: List[SlideFieldSelection], data_df: pd.DataFrame):
+        """Generate table content for a slide based on selected fields"""
+        table_data = {
+            "slide_number": slide_number,
+            "table_rows": [],
+            "updated_at": pd.Timestamp.now().isoformat()
+        }
         
-        ppt_filename = f"{project.name.replace(' ', '_')}_Analysis.pptx"
-        ppt_path = output_dir / ppt_filename
+        for field_selection in fields:
+            row_data = {
+                "label": field_selection.row_label,
+                "is_group_header": field_selection.is_group_header,
+                "values": {}
+            }
+            
+            if field_selection.is_group_header:
+                # Group header row - spans all columns
+                row_data["spans_all_columns"] = True
+                row_data["values"] = {"header": field_selection.row_label}
+            else:
+                # Data row - calculate values based on metric fields
+                for metric_field in field_selection.metric_fields:
+                    if metric_field in data_df.columns:
+                        if field_selection.aggregation == "sum":
+                            value = data_df[metric_field].sum()
+                        elif field_selection.aggregation == "average":
+                            value = data_df[metric_field].mean()
+                        elif field_selection.aggregation == "count":
+                            value = data_df[metric_field].count()
+                        else:
+                            value = data_df[metric_field].sum()
+                        
+                        # Format value based on field type
+                        if metric_field in ["sales_amount"]:
+                            row_data["values"][metric_field] = f"${value:,.2f}"
+                        else:
+                            row_data["values"][metric_field] = f"{value:,.0f}"
+                    else:
+                        row_data["values"][metric_field] = "N/A"
+            
+            table_data["table_rows"].append(row_data)
         
-        prs.save(str(ppt_path))
+        return table_data
+
+    async def _update_consolidated_pptm(self, output_dir: Path):
+        """Update the consolidated PowerPoint file with all slides"""
+        pptm_file = output_dir / "analysis_report.pptm"
         
-        # Add file output to project
-        file_output = ProjectOutput(
-            output_type="file",
-            content=ppt_filename,
-            url=f"/downloads/{self.project_id}/{ppt_filename}",
-            generated_at=datetime.now().isoformat()
+        # Collect all slide table data
+        all_slides_data = {}
+        for slide_file in output_dir.glob("slide_*_table.json"):
+            with open(slide_file, "r") as f:
+                slide_data = json.load(f)
+                all_slides_data[slide_data["slide_number"]] = slide_data
+        
+        # Create consolidated PowerPoint structure (mock)
+        pptm_content = {
+            "presentation_title": f"Analysis Report - Project {self.project_id}",
+            "slides": all_slides_data,
+            "generated_at": pd.Timestamp.now().isoformat(),
+            "total_slides": len(all_slides_data)
+        }
+        
+        # Save consolidated file
+        with open(pptm_file, "w") as f:
+            json.dump(pptm_content, f, indent=2)
+
+    async def _send_analysis_results(
+        self, analyses: List[AgentAnalysisResult], all_fields: List[str]
+    ):
+        """Send analysis results to client"""
+        # Convert all fields to FieldItem format
+        field_items = [
+            FieldItem(
+                field_name=field,
+                description=f"Description for {field}",
+                type=(
+                    "numeric"
+                    if field in ["sales_amount", "units_sold"]
+                    else "categorical"
+                ),
+            )
+            for field in all_fields
+        ]
+
+        for analysis in analyses:
+            await self.websocket_manager.send_to_project(
+                self.project_id,
+                {
+                    "type": "slide_analysis",
+                    "slide_number": analysis.slide_number,
+                    "slide_title": analysis.slide_title,
+                    "agent_selected_fields": [
+                        field.dict() for field in analysis.selected_fields
+                    ],
+                    "all_available_fields": [field.dict() for field in field_items],
+                    "rationale": analysis.rationale,
+                    "status": "agent_analyzed",
+                },
+            )
+
+        await self._send_status(
+            "WAITING_FOR_USER",
+            "Analysis complete. PowerPoint ready. Please review and modify slides as needed.",
+            100,
         )
-        project.outputs.append(file_output)
-        
-        # Send file ready notification
-        await self.websocket_manager.send_to_project(self.project_id, {
-            "type": "file_ready",
-            "file_url": f"/downloads/{self.project_id}/{ppt_filename}",
-            "file_name": ppt_filename,
-            "file_size": f"{ppt_path.stat().st_size / 1024:.1f} KB"
-        })
-    
-    async def send_status(self, status: str, message: str):
-        """Send status update via WebSocket"""
-        await self.websocket_manager.send_to_project(self.project_id, {
-            "type": "status_update",
-            "status": status,
-            "message": message,
-            "timestamp": datetime.now().isoformat()
-        }) 
+
+    async def _send_slide_completed(self, slide_number: int):
+        """Send slide completion notification"""
+        download_url = f"/downloads/{self.project_id}/analysis_report.pptm"
+
+        await self.websocket_manager.send_to_project(
+            self.project_id,
+            {
+                "type": "slide_completed",
+                "slide_number": slide_number,
+                "status": "completed",
+                "download_url": download_url,
+                "message": f"Complete PowerPoint presentation updated with all slides including slide {slide_number} changes",
+            },
+        )
+
+    async def _send_status(self, status: str, message: str, progress: int):
+        """Send status update"""
+        await self.websocket_manager.send_to_project(
+            self.project_id,
+            {
+                "type": "status_update",
+                "status": status,
+                "message": message,
+                "progress": progress,
+            },
+        )
+
+    async def _send_error(self, message: str):
+        """Send error message"""
+        await self.websocket_manager.send_to_project(
+            self.project_id, {"type": "error", "message": message}
+        )

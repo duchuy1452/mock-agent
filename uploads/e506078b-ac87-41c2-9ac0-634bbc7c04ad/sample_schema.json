@@ -1,0 +1,40 @@
+{
+  "date": {
+    "type": "date",
+    "description": "Transaction date",
+    "format": "YYYY-MM-DD",
+    "chart_suggestions": ["timeline", "trend"]
+  },
+  "region": {
+    "type": "categorical",
+    "description": "Sales region",
+    "values": ["North", "South", "East", "West"],
+    "chart_suggestions": ["pie", "bar", "map"]
+  },
+  "product": {
+    "type": "categorical",
+    "description": "Product type",
+    "values": ["Laptop", "Mouse", "Keyboard", "Monitor", "Tablet"],
+    "chart_suggestions": ["bar", "pie", "treemap"]
+  },
+  "sales_amount": {
+    "type": "numeric",
+    "description": "Total sales amount in USD",
+    "unit": "USD",
+    "aggregations": ["sum", "average", "median"],
+    "chart_suggestions": ["bar", "line", "histogram"]
+  },
+  "units_sold": {
+    "type": "numeric",
+    "description": "Number of units sold",
+    "unit": "units",
+    "aggregations": ["sum", "average", "count"],
+    "chart_suggestions": ["bar", "scatter", "histogram"]
+  },
+  "customer_type": {
+    "type": "categorical",
+    "description": "Type of customer",
+    "values": ["Corporate", "Individual"],
+    "chart_suggestions": ["pie", "bar", "donut"]
+  }
+} 

@@ -1,0 +1,28 @@
+{
+  "presentation_title": "Analysis Report - Project 2339d35f-ac79-4eb3-a093-00d651c98803",
+  "slides": {
+    "1": {
+      "slide_number": 1,
+      "table_rows": [
+        {
+          "label": "Total Revenue",
+          "is_group_header": false,
+          "values": {
+            "sales_amount": "$8,047.88"
+          }
+        },
+        {
+          "label": "Revenue by Region",
+          "is_group_header": true,
+          "values": {
+            "header": "Revenue by Region"
+          },
+          "spans_all_columns": true
+        }
+      ],
+      "updated_at": "2025-08-21T13:38:25.052147"
+    }
+  },
+  "generated_at": "2025-08-21T13:38:25.058448",
+  "total_slides": 1
+}

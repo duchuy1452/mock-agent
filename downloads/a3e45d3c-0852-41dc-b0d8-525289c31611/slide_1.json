@@ -1,0 +1,31 @@
+{
+  "slide_number": 1,
+  "fields": [
+    {
+      "row_label": "Total Revenue",
+      "metric_fields": [
+        "sales_amount"
+      ],
+      "is_group_header": false,
+      "spans_all_columns": false,
+      "is_aggregate": false,
+      "filters": [],
+      "aggregation": "sum",
+      "rationale": "Primary metric for measuring revenue"
+    },
+    {
+      "row_label": "Revenue by Region",
+      "metric_fields": [
+        "sales_amount",
+        "region"
+      ],
+      "is_group_header": true,
+      "spans_all_columns": false,
+      "is_aggregate": false,
+      "filters": [],
+      "aggregation": "sum",
+      "rationale": "Analyze geographic distribution"
+    }
+  ],
+  "updated_at": "2025-08-21T09:52:03.999874"
+}

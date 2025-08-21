@@ -1,0 +1,40 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: expert_sure_db
+    environment:
+      POSTGRES_DB: expert_sure
+      POSTGRES_USER: expert_user
+      POSTGRES_PASSWORD: expert_password123
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - expert_sure_network
+
+  app:
+    build: .
+    container_name: expert_sure_app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+    environment:
+      DATABASE_URL: postgresql+asyncpg://expert_user:expert_password123@postgres:5432/expert_sure
+    volumes:
+      - ./uploads:/app/uploads
+      - ./downloads:/app/downloads
+    networks:
+      - expert_sure_network
+
+volumes:
+  postgres_data:
+
+networks:
+  expert_sure_network:
+    driver: bridge

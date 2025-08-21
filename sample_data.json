@@ -1,0 +1,8 @@
+{
+    "date": "The transaction date in YYYY-MM-DD format.",
+    "region": "Geographical region where the sale occurred (e.g., North, South, East, West).",
+    "product": "The product name or category sold (e.g., Laptop, Mouse, Keyboard, Monitor, Tablet).",
+    "sales_amount": "Total monetary value of the sales transaction, expressed in the local currency.",
+    "units_sold": "Number of product units sold in the transaction.",
+    "customer_type": "Type of customer making the purchase (e.g., Corporate, Individual)."
+}

@@ -1,0 +1,63 @@
+[
+  {
+    "row_label": "Reserves",
+    "metric_fields": [
+      "CaseReserves",
+      "ActuarialIBNR"
+    ],
+    "is_group_header": true,
+    "spans_all_columns": true,
+    "is_aggregate": false,
+    "filters": [],
+    "aggregation": "sum",
+    "rationale": "Selected fields represent reserve components, which are essential for understanding the total reserves."
+  },
+  {
+    "row_label": "Prior Year Development",
+    "metric_fields": [
+      "PYDActuarialNominal"
+    ],
+    "is_group_header": false,
+    "spans_all_columns": false,
+    "is_aggregate": false,
+    "filters": [],
+    "aggregation": "sum",
+    "rationale": "Selected field represents prior year development, which is directly related to the row label."
+  },
+  {
+    "row_label": "Click to add Text",
+    "metric_fields": [
+      "CaseReserves"
+    ],
+    "is_group_header": false,
+    "spans_all_columns": false,
+    "is_aggregate": false,
+    "filters": [],
+    "aggregation": "sum",
+    "rationale": "Placeholder row; selected a basic reserve field to ensure metric_fields is not empty."
+  },
+  {
+    "row_label": "[Topical items]",
+    "metric_fields": [
+      "ULAE"
+    ],
+    "is_group_header": false,
+    "spans_all_columns": false,
+    "is_aggregate": false,
+    "filters": [],
+    "aggregation": "sum",
+    "rationale": "Selected ULAE as it may relate to topical items involving claims handling expenses."
+  },
+  {
+    "row_label": "[Topical items]",
+    "metric_fields": [
+      "ULAE"
+    ],
+    "is_group_header": false,
+    "spans_all_columns": false,
+    "is_aggregate": false,
+    "filters": [],
+    "aggregation": "sum",
+    "rationale": "Selected ULAE as it may relate to topical items involving claims handling expenses."
+  }
+]

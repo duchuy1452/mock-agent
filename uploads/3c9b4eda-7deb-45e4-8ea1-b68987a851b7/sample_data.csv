@@ -1,0 +1,17 @@
+date,region,product,sales_amount,units_sold,customer_type
+2024-01-15,North,Laptop,1250.00,5,Corporate
+2024-01-16,South,Mouse,25.99,50,Individual
+2024-01-17,East,Keyboard,89.99,25,Individual
+2024-01-18,West,Monitor,299.99,8,Corporate
+2024-01-19,North,Laptop,1250.00,3,Individual
+2024-01-20,South,Tablet,599.99,12,Corporate
+2024-01-21,East,Mouse,25.99,75,Individual
+2024-01-22,West,Keyboard,89.99,30,Corporate
+2024-01-23,North,Monitor,299.99,15,Individual
+2024-01-24,South,Laptop,1250.00,7,Corporate
+2024-01-25,East,Tablet,599.99,20,Individual
+2024-01-26,West,Mouse,25.99,100,Corporate
+2024-01-27,North,Keyboard,89.99,40,Individual
+2024-01-28,South,Monitor,299.99,18,Corporate
+2024-01-29,East,Laptop,1250.00,6,Individual
+2024-01-30,West,Tablet,599.99,25,Corporate 

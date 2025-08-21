@@ -1,0 +1,21 @@
+{
+  "slide_number": 1,
+  "table_rows": [
+    {
+      "label": "Total Revenue",
+      "is_group_header": false,
+      "values": {
+        "sales_amount": "$8,047.88"
+      }
+    },
+    {
+      "label": "Revenue by Region",
+      "is_group_header": true,
+      "values": {
+        "header": "Revenue by Region"
+      },
+      "spans_all_columns": true
+    }
+  ],
+  "updated_at": "2025-08-21T10:21:51.385405"
+}
