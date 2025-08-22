@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from models import ProjectCreateResponse, SlideRequest, SlideFieldSelection
-from database import get_db, init_database, Project, Slide, ProjectOutput
+from database import get_db, init_database, Project, Slide, ProjectOutput, async_session, wait_for_database
 from services.agent import AnalysisAgent
 from services.websocket_manager import WebSocketManager
 
@@ -51,7 +51,11 @@ websocket_manager = WebSocketManager()
 @app.on_event("startup")
 async def startup_event():
     """Initialize database on startup"""
-    await init_database()
+    print("Waiting for database to be ready...")
+    if await wait_for_database():
+        await init_database()
+    else:
+        raise Exception("Database failed to become ready")
 
 
 @app.get("/")
@@ -253,28 +257,44 @@ async def handle_slide_update(project_id: str, data: dict, agent: AnalysisAgent)
 
 async def handle_chat_query(project_id: str, data: dict, websocket: WebSocket):
     """Handle chat queries for RAG"""
-    project = projects_db[project_id]
+    try:
+        async with async_session() as session:
+            # Get project from database
+            result = await session.execute(select(Project).where(Project.id == project_id))
+            project = result.scalar_one_or_none()
+            
+            if not project:
+                await websocket.send_json({
+                    "type": "error",
+                    "message": "Project not found"
+                })
+                return
 
-    # Mock RAG response (in production, integrate with LLM)
-    query = data.get("message", "")
+            # Mock RAG response (in production, integrate with LLM)
+            query = data.get("message", "")
 
-    # Simulate processing time
-    await asyncio.sleep(1)
+            # Simulate processing time
+            await asyncio.sleep(1)
 
-    response = f"Based on your analysis of {project.name}, regarding '{query}': This is a mock response. In production, this would query the RAG system with your slide content and data."
+            response = f"Based on your analysis of {project.name}, regarding '{query}': This is a mock response. In production, this would query the RAG system with your slide content and data."
 
-    await websocket.send_json(
-        {
-            "type": "chat_response",
-            "message": response,
-            "sources": ["slide_1", "original_data"],
-            "suggested_actions": [
-                "Generate deep-dive analysis",
-                "Create additional slides",
-                "Export findings to report",
-            ],
-        }
-    )
+            await websocket.send_json(
+                {
+                    "type": "chat_response",
+                    "message": response,
+                    "sources": ["slide_1", "original_data"],
+                    "suggested_actions": [
+                        "Generate deep-dive analysis",
+                        "Create additional slides",
+                        "Export findings to report",
+                    ],
+                }
+            )
+    except Exception as e:
+        await websocket.send_json({
+            "type": "error", 
+            "message": f"Failed to process chat query: {str(e)}"
+        })
 
 
 async def get_data_preview(file_path: str) -> List[Dict]:

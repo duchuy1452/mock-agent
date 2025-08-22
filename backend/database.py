@@ -113,5 +113,48 @@ async def get_db():
 
 # Initialize database
 async def init_database():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    import asyncio
+    import asyncpg
+    
+    max_retries = 30
+    retry_interval = 2
+    
+    for attempt in range(max_retries):
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            print("Database initialized successfully")
+            return
+        except (asyncpg.CannotConnectNowError, ConnectionRefusedError, OSError) as e:
+            if attempt < max_retries - 1:
+                print(f"Database not ready yet (attempt {attempt + 1}/{max_retries}): {str(e)}")
+                await asyncio.sleep(retry_interval)
+            else:
+                print(f"Failed to connect to database after {max_retries} attempts")
+                raise
+
+
+# Health check function
+async def wait_for_database():
+    """Wait for database to be ready before starting the application"""
+    import asyncio
+    import asyncpg
+    
+    max_retries = 30
+    retry_interval = 2
+    
+    for attempt in range(max_retries):
+        try:
+            async with engine.begin() as conn:
+                from sqlalchemy import text
+                await conn.execute(text("SELECT 1"))
+            print("Database is ready!")
+            return True
+        except (asyncpg.CannotConnectNowError, ConnectionRefusedError, OSError, Exception) as e:
+            if attempt < max_retries - 1:
+                print(f"Waiting for database to be ready (attempt {attempt + 1}/{max_retries}): {str(e)}")
+                await asyncio.sleep(retry_interval)
+            else:
+                print(f"Database failed to become ready after {max_retries} attempts")
+                return False
+    return False
