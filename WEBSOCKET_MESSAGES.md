@@ -7,6 +7,7 @@
 3. **Agent generates complete PowerPoint** → Client receives download URL
 4. **Client edits fields** → Client sends slide update
 5. **Agent regenerates entire PowerPoint** → Client gets updated file with all slides
+6. **NEW: Agent sends updated data back** → Client receives the same data format as initial analysis
 
 ---
 
@@ -179,7 +180,63 @@
 }
 ```
 
-### 9. Slide Completed
+### 9. Slide Update Complete (New - Updated data after user modification)
+```json
+{
+  "type": "slide_update_complete",
+  "slide_number": 1,
+  "slide_title": "Reserves Summary",
+  "user_modified_fields": [
+    {
+      "row_label": "Total",
+      "metric_fields": ["ActualIncurred", "NominalReserves", "DiscountedReserves"],
+      "is_group_header": true,
+      "spans_all_columns": true,
+      "aggregation": "sum",
+      "rationale": "Total reserves across all lines of business"
+    }
+  ],
+  "final_fields": [
+    {
+      "row_label": "Total",
+      "metric_fields": ["ActualIncurred", "NominalReserves", "DiscountedReserves"],
+      "is_group_header": true,
+      "spans_all_columns": true,
+      "aggregation": "sum",
+      "rationale": "Total reserves across all lines of business"
+    }
+  ],
+  "all_available_fields": [
+    {
+      "field_name": "ActualIncurred",
+      "description": "Total actual incurred losses",
+      "type": "numeric"
+    },
+    {
+      "field_name": "LoB_masked",
+      "description": "Line of Business identifier",
+      "type": "categorical"
+    }
+  ],
+  "status": "completed",
+  "data_preview": [
+    {
+      "LoB_masked": 1,
+      "AccidentYear": 2019,
+      "DevelopmentYear": 1,
+      "ActualIncurred": 1250000,
+      "NominalReserves": 980000,
+      "DiscountedReserves": 950000,
+      "OCL": 180000,
+      "ChangeInOcl": 25000,
+      "BusinessSegment": "Property"
+    }
+  ],
+  "message": "Slide 1 has been updated with your changes"
+}
+```
+
+### 10. Slide Completed
 ```json
 {
   "type": "slide_completed",
@@ -190,7 +247,7 @@
 }
 ```
 
-### 10. Chat Response (RAG)
+### 11. Chat Response (RAG)
 ```json
 {
   "type": "chat_response",
@@ -204,7 +261,7 @@
 }
 ```
 
-### 11. Error Messages
+### 12. Error Messages
 ```json
 {
   "type": "error",
@@ -245,6 +302,7 @@ That's it! 🚀
 - **Data Preview**: Each slide includes calculated table preview with real data
 - **Smart Formatting**: Automatic currency, percentage, and number formatting
 - **Live Table Preview**: See exactly how the table will look before downloading
+- **🆕 Complete Data Sync**: After slide updates, client receives the same comprehensive data format as initial analysis
 
 ## 📊 **Slide Table Structure:**
 

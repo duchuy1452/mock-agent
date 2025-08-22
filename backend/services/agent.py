@@ -321,6 +321,9 @@ class AnalysisAgent:
                 )
                 await session.commit()
 
+                # Send updated slide data back to client
+                await self._send_slide_update_complete(slide_number, user_fields)
+                
                 await self._send_slide_completed(slide_number)
 
         except Exception as e:
@@ -471,6 +474,63 @@ class AnalysisAgent:
             "Analysis complete. PowerPoint ready. Please review and modify slides as needed.",
             100,
         )
+
+    async def _send_slide_update_complete(self, slide_number: int, user_fields: List[SlideFieldSelection]):
+        """Send updated slide data back to client after update"""
+        try:
+            async with async_session() as session:
+                # Get project data for available fields
+                result = await session.execute(
+                    select(Project).where(Project.id == self.project_id)
+                )
+                project = result.scalar_one()
+                
+                # Load data for preview
+                data_df = pd.read_csv(project.data_source_path)
+                data_preview = data_df.head(10).to_dict("records")  # First 10 rows
+                
+                # Get all available fields from project
+                all_fields = project.available_fields if project.available_fields else []
+                
+                # Convert all fields to FieldItem format 
+                field_items = [
+                    FieldItem(
+                        field_name=field,
+                        description=f"Description for {field}",
+                        type=(
+                            "numeric"
+                            if field in ["ActualIncurred", "NominalReserves", "DiscountedReserves", "OCL", "ChangeInOcl"] or data_df[field].dtype in ['int64', 'float64']
+                            else "categorical"
+                        ),
+                    )
+                    for field in all_fields if field in data_df.columns
+                ]
+                
+                # Get updated slide data
+                slide_result = await session.execute(
+                    select(Slide).where(
+                        Slide.project_id == self.project_id,
+                        Slide.slide_number == slide_number
+                    )
+                )
+                slide_data = slide_result.scalar_one()
+
+                await self.websocket_manager.send_to_project(
+                    self.project_id,
+                    {
+                        "type": "slide_update_complete",
+                        "slide_number": slide_number,
+                        "slide_title": slide_data.slide_title,
+                        "user_modified_fields": [field.dict() for field in user_fields],
+                        "final_fields": [field.dict() for field in user_fields],
+                        "all_available_fields": [field.dict() for field in field_items],
+                        "status": "completed",
+                        "data_preview": data_preview,
+                        "message": f"Slide {slide_number} has been updated with your changes",
+                    },
+                )
+        except Exception as e:
+            await self._send_error(f"Failed to send slide update data: {str(e)}")
 
     async def _send_slide_completed(self, slide_number: int):
         """Send slide completion notification"""
