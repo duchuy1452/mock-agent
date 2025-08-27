@@ -109,7 +109,7 @@ class AnalysisAgent:
 
                 # Send results to client with PowerPoint download URL
                 await self._send_analysis_results(
-                    slide_analyses, list(schema_data.keys())
+                    slide_analyses
                 )
 
         except Exception as e:
@@ -806,7 +806,7 @@ class AnalysisAgent:
             json.dump(pptm_content, f, indent=2)
 
     async def _send_analysis_results(
-        self, analyses: List[AgentAnalysisResult], all_fields: List[str]
+        self, analyses: List[AgentAnalysisResult]
     ):
         """Send analysis results with data preview to client"""
         # Get project data for preview
@@ -820,31 +820,6 @@ class AnalysisAgent:
             data_df = pd.read_csv(project.data_source_path)
             data_preview = data_df.head(10).to_dict("records")  # First 10 rows
 
-        # Convert all fields to FieldItem format
-        field_items = [
-            FieldItem(
-                field_name=field,
-                description=f"Description for {field}",
-                type=(
-                    "numeric"
-                    if field
-                    in [
-                        "ActuarialIBNR",
-                        "PaidLossandALAE",
-                        "CaseReserves",
-                        "ULAE",
-                        "NonCatLosses",
-                        "ChangeInReservesForPolicyholderDividends",
-                        "LargeLosses1",
-                    ]
-                    or data_df[field].dtype in ["int64", "float64"]
-                    else "categorical"
-                ),
-            )
-            for field in all_fields
-            if field in data_df.columns
-        ]
-
         for analysis in analyses:
             # Convert to LLMSlideReader format
             llm_slide_reader = self._convert_to_llm_slide_reader(analysis, data_df)
@@ -855,10 +830,9 @@ class AnalysisAgent:
                     "type": "slide_analysis",
                     "slide_number": analysis.slide_number,
                     "slide_title": analysis.slide_title,
-                    "agent_selected_fields": [
+                    "row_logic": [
                         field.dict() for field in analysis.selected_fields
                     ],
-                    "all_available_fields": [field.dict() for field in field_items],
                     "llm_slide_reader": llm_slide_reader.dict(),
                     "rationale": analysis.rationale,
                     "status": "agent_analyzed",
@@ -890,36 +864,6 @@ class AnalysisAgent:
                 data_df = pd.read_csv(project.data_source_path)
                 data_preview = data_df.head(10).to_dict("records")  # First 10 rows
 
-                # Get all available fields from project
-                all_fields = (
-                    project.available_fields if project.available_fields else []
-                )
-
-                # Convert all fields to FieldItem format
-                field_items = [
-                    FieldItem(
-                        field_name=field,
-                        description=f"Description for {field}",
-                        type=(
-                            "numeric"
-                            if field
-                            in [
-                                "ActuarialIBNR",
-                                "PaidLossandALAE",
-                                "CaseReserves",
-                                "ULAE",
-                                "NonCatLosses",
-                                "ChangeInReservesForPolicyholderDividends",
-                                "LargeLosses1",
-                            ]
-                            or data_df[field].dtype in ["int64", "float64"]
-                            else "categorical"
-                        ),
-                    )
-                    for field in all_fields
-                    if field in data_df.columns
-                ]
-
                 # Get updated slide data
                 slide_result = await session.execute(
                     select(Slide).where(
@@ -942,7 +886,6 @@ class AnalysisAgent:
                         "slide_title": slide_data.slide_title,
                         "user_modified_fields": [field.dict() for field in user_fields],
                         "final_fields": [field.dict() for field in user_fields],
-                        "all_available_fields": [field.dict() for field in field_items],
                         "llm_slide_reader": llm_slide_reader.dict(),
                         "status": "completed",
                         "data_preview": data_preview,

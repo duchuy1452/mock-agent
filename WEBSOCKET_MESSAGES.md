@@ -101,18 +101,6 @@
       "component_rows": ["LOB1", "LOB2", "LOB3", "LOB4", "LOB5"]
     }
   ],
-  "all_available_fields": [
-    {
-      "field_name": "ActualIncurred",
-      "description": "Total actual incurred losses",
-      "type": "numeric"
-    },
-    {
-      "field_name": "LoB_masked",
-      "description": "Line of Business identifier",
-      "type": "categorical"
-    }
-  ],
   "rationale": "High-level overview of reserve positions and claims liability",
   "status": "agent_analyzed",
   "data_preview": [
@@ -204,18 +192,6 @@
       "spans_all_columns": true,
       "aggregation": "sum",
       "rationale": "Total reserves across all lines of business"
-    }
-  ],
-  "all_available_fields": [
-    {
-      "field_name": "ActualIncurred",
-      "description": "Total actual incurred losses",
-      "type": "numeric"
-    },
-    {
-      "field_name": "LoB_masked",
-      "description": "Line of Business identifier",
-      "type": "categorical"
     }
   ],
   "status": "completed",

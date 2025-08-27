@@ -108,6 +108,5 @@ class SlideAnalysisResponse(BaseModel):
     slide_number: int
     slide_title: str
     agent_selected_fields: List[SlideFieldSelection]
-    all_available_fields: List[FieldItem]
     llm_slide_reader: LLMSlideReader
     status: str
